@@ -20,13 +20,13 @@ function generateHMACSignature(payload: string, secretKey: string): string {
   return signature;
 }
 
-async function createVeriffSession() {
+async function createVeriffSession(firstName: string, lastName: string) {
   const sessionData = {
     verification: {
       callback: "https://example.com/callback", // Placeholder HTTPS URL as required
       person: {
-        firstName: "Test",
-        lastName: "User",
+        firstName: firstName,
+        lastName: lastName,
       },
     },
   };
@@ -278,10 +278,12 @@ export async function POST(request: NextRequest) {
     const frontLicense = formData.get("frontLicense") as File;
     const backLicense = formData.get("backLicense") as File;
     const selfie = formData.get("selfie") as File;
+    const firstName = formData.get("firstName") as string;
+    const lastName = formData.get("lastName") as string;
 
-    if (!frontLicense || !backLicense || !selfie) {
+    if (!frontLicense || !backLicense || !selfie || !firstName || !lastName) {
       return NextResponse.json(
-        { success: false, error: "All three files are required" },
+        { success: false, error: "All files and personal information are required" },
         { status: 400 }
       );
     }
@@ -294,7 +296,8 @@ export async function POST(request: NextRequest) {
 
     // Step 1: Create Veriff session
     console.log("Creating Veriff session...");
-    const sessionResponse = await createVeriffSession();
+    console.log("Person info:", { firstName, lastName });
+    const sessionResponse = await createVeriffSession(firstName, lastName);
     console.log(
       "Full session response:",
       JSON.stringify(sessionResponse, null, 2)

@@ -103,6 +103,10 @@ export default function VerificationPortal() {
     privateKey: "",
     showPrivateKey: false,
   });
+  const [personalInfo, setPersonalInfo] = useState({
+    firstName: "",
+    lastName: "",
+  });
 
   // Simple crypto function for demo HMAC generation
   const generateDemoHMAC = async (payload: string, secretKey: string) => {
@@ -152,7 +156,7 @@ export default function VerificationPortal() {
     }
   };
 
-  const isFormValid = files.frontLicense && files.backLicense && files.selfie;
+  const isFormValid = files.frontLicense && files.backLicense && files.selfie && personalInfo.firstName && personalInfo.lastName;
 
   const handleDemoSubmit = async () => {
     if (!isFormValid) return;
@@ -318,6 +322,8 @@ export default function VerificationPortal() {
       formData.append("frontLicense", files.frontLicense!);
       formData.append("backLicense", files.backLicense!);
       formData.append("selfie", files.selfie!);
+      formData.append("firstName", personalInfo.firstName);
+      formData.append("lastName", personalInfo.lastName);
 
       // Simulate progress updates
       const progressInterval = setInterval(() => {
@@ -432,6 +438,58 @@ export default function VerificationPortal() {
             )}
           </div>
         </div>
+
+        {/* Personal Information Section */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg">Personal Information</CardTitle>
+            <CardDescription>
+              Please enter your name as it appears on your driver's license
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  value={personalInfo.firstName}
+                  onChange={(e) =>
+                    setPersonalInfo((prev) => ({
+                      ...prev,
+                      firstName: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter your first name"
+                  disabled={isSubmitting}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  value={personalInfo.lastName}
+                  onChange={(e) =>
+                    setPersonalInfo((prev) => ({
+                      ...prev,
+                      lastName: e.target.value,
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter your last name"
+                  disabled={isSubmitting}
+                  required
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* API Keys Section (Demo Mode Only) */}
         {mode === "demo" && (

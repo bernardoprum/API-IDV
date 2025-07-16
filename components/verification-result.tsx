@@ -20,13 +20,13 @@ interface VerificationData {
   status: "approved" | "declined" | "resubmission_requested"; // Renamed from decision
   reason?: string; // Added from the decision response
   reasonCode?: number; // Added from the decision response
-  riskLabels?: string[]; // Added from the decision response
+  riskLabels?: { label: string; category: string; sessionIds: string[] }[]; // Changed to array of objects
   person?: {
     firstName: string | null;
     lastName: string | null;
     gender: string | null;
     idNumber: string | null;
-    addresses: any[];
+    addresses: { fullAddress: string }[];
     citizenship: string | null;
     dateOfBirth: string | null;
     nationality: string | null;
@@ -56,6 +56,13 @@ interface VerificationData {
     hmacGenerated: boolean;
     realApiReady: boolean;
   };
+  // Add other properties from the new decision response here if necessary for display
+  attemptId?: string;
+  endUserId?: string | null;
+  vendorData?: string | null;
+  decisionTime?: string;
+  acceptanceTime?: string;
+  additionalVerifiedData?: Record<string, any>;
 }
 
 interface VerificationResultProps {
@@ -166,6 +173,16 @@ export default function VerificationResult({ data }: VerificationResultProps) {
         )}
       </CardHeader>
       <CardContent className="space-y-6">
+        {data.riskLabels && data.riskLabels.length > 0 && (
+          <div className="bg-red-50 rounded-lg p-4 mt-4">
+            <h3 className="font-medium text-red-900 mb-2">Risk Labels</h3>
+            <ul className="list-disc pl-5 text-sm text-red-800">
+              {data.riskLabels.map((labelObj, index) => (
+                <li key={index}>{labelObj.label}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="grid md:grid-cols-3 gap-6">
           {/* Document Validation */}
           <Card>
@@ -214,8 +231,6 @@ export default function VerificationResult({ data }: VerificationResultProps) {
                         : "N/A"}
                     </span>
                   </div>
-                  {/* Note: isValid and confidence are not directly available in the provided document object, 
-                       so we'll omit them or use placeholder/derived values if needed later. */}
                 </>
               ) : (
                 <p className="text-sm text-gray-600">
@@ -248,76 +263,38 @@ export default function VerificationResult({ data }: VerificationResultProps) {
                       {data.person.lastName || "N/A"}
                     </span>
                   </div>
-                  {data.person.gender && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Gender:</span>
-                      <span className="text-sm font-medium">
-                        {data.person.gender}
-                      </span>
-                    </div>
-                  )}
-                  {data.person.dateOfBirth && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">
-                        Date of Birth:
-                      </span>
-                      <span className="text-sm font-medium">
-                        {new Date(data.person.dateOfBirth).toLocaleDateString()}
-                      </span>
-                    </div>
-                  )}
-                  {data.person.nationality && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">
-                        Nationality:
-                      </span>
-                      <span className="text-sm font-medium">
-                        {data.person.nationality}
-                      </span>
-                    </div>
-                  )}
-                  {data.person.citizenship && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">
-                        Citizenship:
-                      </span>
-                      <span className="text-sm font-medium">
-                        {data.person.citizenship}
-                      </span>
-                    </div>
-                  )}
-                  {data.person.placeOfBirth && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">
-                        Place of Birth:
-                      </span>
-                      <span className="text-sm font-medium">
-                        {data.person.placeOfBirth}
-                      </span>
-                    </div>
-                  )}
-                  {data.person.idNumber && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">ID Number:</span>
-                      <span className="text-sm font-medium">
-                        {data.person.idNumber}
-                      </span>
-                    </div>
-                  )}
-                  {data.person.pepSanctionMatch && (
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">
-                        PEP/Sanction Match:
-                      </span>
-                      <span className="text-sm font-medium">
-                        {data.person.pepSanctionMatch}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Gender:</span>
+                    <span className="text-sm font-medium">
+                      {data.person.gender || "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">
+                      Date of Birth:
+                    </span>
+                    <span className="text-sm font-medium">
+                      {data.person.dateOfBirth || "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Address:</span>
+                    <span className="text-sm font-medium">
+                      {data.person.addresses && data.person.addresses.length > 0
+                        ? data.person.addresses[0].fullAddress
+                        : "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">ID Number:</span>
+                    <span className="text-sm font-medium">
+                      {data.person.idNumber || "N/A"}
+                    </span>
+                  </div>
                 </>
               ) : (
                 <p className="text-sm text-gray-600">
-                  No person data available.
+                  No person details available.
                 </p>
               )}
             </CardContent>
@@ -327,7 +304,7 @@ export default function VerificationResult({ data }: VerificationResultProps) {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
-                <User className="h-5 w-5" />
+                <Shield className="h-5 w-5" />
                 Face Match
               </CardTitle>
             </CardHeader>
@@ -335,14 +312,16 @@ export default function VerificationResult({ data }: VerificationResultProps) {
               {data.faceMatch ? (
                 <>
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Match:</span>
-                    <Badge
-                      variant={
-                        data.faceMatch.isMatch ? "default" : "destructive"
-                      }
+                    <span className="text-sm text-gray-600">Match Status:</span>
+                    <span
+                      className={`text-sm font-medium ${
+                        data.faceMatch.isMatch
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
                     >
                       {data.faceMatch.isMatch ? "Match" : "No Match"}
-                    </Badge>
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Confidence:</span>
@@ -351,7 +330,7 @@ export default function VerificationResult({ data }: VerificationResultProps) {
                         data.faceMatch.confidence
                       )}`}
                     >
-                      {data.faceMatch.confidence}%
+                      {data.faceMatch.confidence.toFixed(2)}%
                     </span>
                   </div>
                 </>
@@ -362,112 +341,60 @@ export default function VerificationResult({ data }: VerificationResultProps) {
               )}
             </CardContent>
           </Card>
+        </div>
 
-          {/* Security Checks */}
+        {/* Overall Checks Summary */}
+        {data.checks && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Security Checks
+                <CheckCircle className="h-5 w-5" />
+                Overall Checks Summary
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {data.checks ? (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Authenticity:</span>
-                    <Badge
-                      variant={
-                        data.checks.documentAuthenticity
-                          ? "default"
-                          : "destructive"
-                      }
-                    >
-                      {data.checks.documentAuthenticity ? "Pass" : "Fail"}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Face Check:</span>
-                    <Badge
-                      variant={
-                        data.checks.faceMatchCheck ? "default" : "destructive"
-                      }
-                    >
-                      {data.checks.faceMatchCheck ? "Pass" : "Fail"}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">
-                      Data Extraction:
-                    </span>
-                    <Badge
-                      variant={
-                        data.checks.documentDataExtraction
-                          ? "default"
-                          : "destructive"
-                      }
-                    >
-                      {data.checks.documentDataExtraction ? "Pass" : "Fail"}
-                    </Badge>
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-gray-600">
-                  No security checks data available.
-                </p>
-              )}
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">
+                  Document Authenticity:
+                </span>
+                <span
+                  className={`text-sm font-medium ${
+                    data.checks.documentAuthenticity
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }`}
+                >
+                  {data.checks.documentAuthenticity ? "Passed" : "Failed"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Face Match Check:</span>
+                <span
+                  className={`text-sm font-medium ${
+                    data.checks.faceMatchCheck
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }`}
+                >
+                  {data.checks.faceMatchCheck ? "Passed" : "Failed"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">
+                  Document Data Extraction:
+                </span>
+                <span
+                  className={`text-sm font-medium ${
+                    data.checks.documentDataExtraction
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }`}
+                >
+                  {data.checks.documentDataExtraction ? "Passed" : "Failed"}
+                </span>
+              </div>
             </CardContent>
           </Card>
-        </div>
-
-        {data.status === "resubmission_requested" && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-yellow-800">
-                  Resubmission Required
-                </h4>
-                <p className="text-sm text-yellow-700 mt-1">
-                  {data.reason ||
-                    "Please review your documents and submit clearer images. Ensure all text is readable and the photos are well-lit."}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {data.status === "declined" && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-red-800">
-                  Verification Declined
-                </h4>
-                <p className="text-sm text-red-700 mt-1">
-                  {data.reason ||
-                    "The verification could not be completed successfully. Please contact support if you believe this is an error."}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {data.riskLabels && data.riskLabels.length > 0 && (
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-orange-800">Risk Labels</h4>
-                <ul className="list-disc list-inside text-sm text-orange-700 mt-1">
-                  {data.riskLabels.map((label, index) => (
-                    <li key={index}>{label}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
         )}
       </CardContent>
     </Card>

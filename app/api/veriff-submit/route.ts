@@ -363,137 +363,22 @@ export async function POST(request: NextRequest) {
       console.log("🔄 Continuing with verification polling...");
     }
 
-    // Step 3: Poll for decision (with retries)
-    console.log("Polling for verification decision...");
-    console.log("Using session ID for polling:", cleanSessionId);
-    console.log("Session ID used in uploads:", cleanSessionId);
-
-    let decision = null;
-    let attempts = 0;
-    const maxAttempts = 20; // Increased to allow more time for processing
-    const delayMs = 5000; // 5 seconds between attempts (longer for Full Auto)
-
-    // Initial delay to allow Veriff to process the uploads
-    console.log("Waiting 10 seconds for initial processing...");
-    await new Promise((resolve) => setTimeout(resolve, 10000));
-
-    while (!decision && attempts < maxAttempts) {
-      try {
-        attempts++;
-        console.log(`Decision polling attempt ${attempts}/${maxAttempts}`);
-
-        const decisionResponse = await getVerificationDecision(cleanSessionId);
-
-        // Check if decision is still pending
-        if (decisionResponse.status === "pending") {
-          console.log(`Decision not ready, attempt ${attempts}/${maxAttempts}`);
-          if (attempts < maxAttempts) {
-            await new Promise((resolve) => setTimeout(resolve, delayMs));
-          }
-          continue;
-        }
-
-        // Check for verification decision completion
-        if (
-          decisionResponse.status &&
-          (decisionResponse.status === "approved" ||
-            decisionResponse.status === "declined" ||
-            decisionResponse.status === "resubmission_requested")
-        ) {
-          decision = decisionResponse;
-          console.log("✅ Decision received:", decisionResponse.status);
-          break;
-        }
-
-        console.log(`Decision not ready, attempt ${attempts}/${maxAttempts}`);
-        console.log("Response:", JSON.stringify(decisionResponse, null, 2));
-
-        if (attempts < maxAttempts) {
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
-        }
-      } catch (error) {
-        console.log(
-          `Decision polling error (attempt ${attempts}/${maxAttempts}):`,
-          error
-        );
-
-        if (attempts >= maxAttempts) {
-          throw error;
-        }
-
-        // Wait before retrying
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-    }
-
-    if (!decision) {
-      console.log(
-        "⏰ Verification decision not available after maximum attempts"
-      );
-      console.log("📋 Session Summary:");
-      console.log("- Session ID:", cleanSessionId);
-      console.log(
-        "- Upload Results:",
-        uploadResults.map((r) => `${r.image?.context}: ${r.status}`)
-      );
-      console.log(
-        "- Total Processing Time:",
-        `${(maxAttempts * delayMs + 10000) / 1000} seconds`
-      );
-      console.log("- Max Attempts:", maxAttempts);
-
-      // Return a partial response instead of throwing an error
-      return NextResponse.json(
-        {
-          success: false,
-          status: "processing",
-          message: "Verification is still processing. Please check back later.",
-          data: {
-            sessionId: cleanSessionId,
-            processingTime: `${(maxAttempts * delayMs + 10000) / 1000} seconds`,
-            attempts: maxAttempts,
-            uploads: uploadResults.map((r) => ({
-              context: r.image?.context,
-              status: r.status,
-              mediaId: r.image?.id,
-            })),
-            checkStatusUrl: `/api/veriff-status?sessionId=${cleanSessionId}`,
-          },
-        },
-        { status: 202 }
-      ); // 202 Accepted - processing
-    }
-
-    // Step 4: Format response
-    const verificationData = {
-      sessionId: cleanSessionId,
-      decision: decision.status,
-      code: decision.code,
-      reason: decision.reason,
-      decisionTime: decision.decisionTime,
-      acceptanceTime: decision.acceptanceTime,
-      documentValidation: {
-        documentType: decision.document?.type || "Unknown",
-        documentNumber: decision.document?.number || "N/A",
-        isValid: decision.status === "approved",
-        country: decision.document?.country,
-        validFrom: decision.document?.validFrom,
-        validUntil: decision.document?.validUntil,
-      },
-      person: {
-        firstName: decision.person?.firstName,
-        lastName: decision.person?.lastName,
-        dateOfBirth: decision.person?.dateOfBirth,
-        nationality: decision.person?.nationality,
-        idNumber: decision.person?.idNumber,
-      },
-      riskLabels: decision.riskLabels || [],
-      reasonCode: decision.reasonCode,
-    };
-
+    // Step 3: Return immediately after successful submission
+    console.log("✅ Session submitted successfully - returning to client for polling");
+    
     return NextResponse.json({
       success: true,
-      data: verificationData,
+      status: "submitted",
+      message: "Verification submitted successfully. Use the provided endpoint to check status.",
+      data: {
+        sessionId: cleanSessionId,
+        uploads: uploadResults.map((r) => ({
+          context: r.image?.context,
+          status: r.status,
+          mediaId: r.image?.id,
+        })),
+        statusCheckUrl: `/api/veriff-status?sessionId=${cleanSessionId}`,
+      },
     });
   } catch (error) {
     console.error("Veriff verification error:", error);

@@ -156,7 +156,12 @@ export default function VerificationPortal() {
     }
   };
 
-  const isFormValid = files.frontLicense && files.backLicense && files.selfie && personalInfo.firstName && personalInfo.lastName;
+  const isFormValid =
+    files.frontLicense &&
+    files.backLicense &&
+    files.selfie &&
+    personalInfo.firstName &&
+    personalInfo.lastName;
 
   const handleDemoSubmit = async () => {
     if (!isFormValid) return;
@@ -325,38 +330,99 @@ export default function VerificationPortal() {
       formData.append("firstName", personalInfo.firstName);
       formData.append("lastName", personalInfo.lastName);
 
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => Math.min(prev + 10, 90));
-      }, 500);
+      // Step 1: Submit verification
+      setProgress(20);
+      console.log("🚀 Submitting verification to Veriff...");
 
       const response = await fetch("/api/veriff-submit", {
         method: "POST",
         body: formData,
       });
 
-      clearInterval(progressInterval);
-      setProgress(100);
-
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Verification failed");
+        throw new Error(data.error || "Verification submission failed");
       }
 
-      if (data.success) {
-        setResult(data.data);
-      } else {
-        throw new Error(data.error || "Verification failed");
+      if (!data.success) {
+        throw new Error(data.error || "Verification submission failed");
       }
+
+      // Step 2: Start polling for results
+      const sessionId = data.data.sessionId;
+      console.log("✅ Verification submitted, session ID:", sessionId);
+      console.log("🔄 Starting status polling...");
+
+      setProgress(40);
+      await pollVerificationStatus(sessionId);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "An unexpected error occurred"
       );
-    } finally {
       setIsSubmitting(false);
       setTimeout(() => setProgress(0), 1000);
     }
+  };
+
+  const pollVerificationStatus = async (sessionId: string) => {
+    const maxAttempts = 24; // 2 minutes total (24 * 5 seconds)
+    const pollInterval = 5000; // 5 seconds
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(
+          `🔍 Checking status (attempt ${attempt}/${maxAttempts})...`
+        );
+
+        // Update progress (40% to 90% during polling)
+        const pollProgress = 40 + (attempt / maxAttempts) * 50;
+        setProgress(Math.min(pollProgress, 90));
+
+        const statusResponse = await fetch(
+          `/api/veriff-status?sessionId=${sessionId}`
+        );
+        const statusData = await statusResponse.json();
+
+        if (!statusResponse.ok) {
+          throw new Error(statusData.error || "Status check failed");
+        }
+
+        if (statusData.status === "completed") {
+          console.log("✅ Verification completed:", statusData.data.decision);
+          setProgress(100);
+          setResult(statusData.data);
+          setIsSubmitting(false);
+          setTimeout(() => setProgress(0), 1000);
+          return;
+        }
+
+        if (statusData.status === "pending") {
+          console.log("⏳ Verification still processing...");
+          if (attempt < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, pollInterval));
+          }
+          continue;
+        }
+
+        throw new Error(`Unexpected status: ${statusData.status}`);
+      } catch (err) {
+        console.error(`❌ Status check error (attempt ${attempt}):`, err);
+
+        if (attempt >= maxAttempts) {
+          throw new Error(
+            "Verification timeout - please check back later in the Veriff dashboard"
+          );
+        }
+
+        // Wait before retry
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      }
+    }
+
+    throw new Error(
+      "Verification timed out after 2 minutes. The verification may still be processing - please check back later in the Veriff dashboard."
+    );
   };
 
   const handleSubmit =
@@ -625,16 +691,22 @@ export default function VerificationPortal() {
                   <span>
                     {mode === "demo"
                       ? "Processing demo..."
-                      : "Processing verification..."}
+                      : progress < 40
+                      ? "Uploading and submitting..."
+                      : progress < 90
+                      ? "Waiting for verification results..."
+                      : "Finalizing..."}
                   </span>
                   <span>{progress}%</span>
                 </div>
                 <Progress value={progress} className="w-full" />
-                {mode === "demo" && (
-                  <p className="text-xs text-blue-600 text-center">
-                    Check browser console for detailed logs
-                  </p>
-                )}
+                <p className="text-xs text-gray-500 text-center">
+                  {mode === "demo"
+                    ? "Check browser console for detailed logs"
+                    : progress < 40
+                    ? "Submitting documents to Veriff..."
+                    : "Polling for verification decision... This may take 1-2 minutes."}
+                </p>
               </div>
             )}
 
